@@ -77,12 +77,23 @@ jobs:
             fi
             
             # Poll for workflow to become active, up to 5 seconds
+            echo "Waiting for workflow to activate..."
             for i in {1..5}; do
-              check_response=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_file")
-              state=$(echo "$check_response" | jq -r .state)
-              if [ "$state" = "active" ]; then
-                echo "Workflow $workflow_file is now active"
-                break
+              check_response=$(curl -s -w "\n%{http_code}" -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_file")
+              check_http_code=$(echo "$check_response" | tail -n1)
+              
+              if [ "$check_http_code" = "200" ]; then
+                state=$(echo "$check_response" | sed '$d' | jq -r .state)
+                if [ "$state" = "active" ]; then
+                  echo "Workflow $workflow_file is now active"
+                  break
+                fi
+              else
+                echo "Warning: Failed to check workflow state during polling (HTTP $check_http_code)"
+              fi
+              
+              if [ $i -eq 5 ]; then
+                echo "Warning: Workflow may not be fully active yet after 5 seconds"
               fi
               sleep 1
             done
