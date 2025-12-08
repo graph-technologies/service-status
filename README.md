@@ -11,6 +11,7 @@ Visit our status page to see real-time availability and performance metrics.
 ## 🔧 Configuration
 
 This status page is configured to monitor:
+
 - **Graph Technologies Main Site** - https://graphtechnologies.xyz
 
 Additional services can be added by updating the `.upptimerc.yml` configuration file.
