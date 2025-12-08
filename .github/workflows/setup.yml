@@ -22,6 +22,8 @@ on:
   repository_dispatch:
     types: [setup]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   release:
     name: Setup Upptime
@@ -30,8 +32,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: true
           token: ${{ secrets.GH_PAT || github.token }}
+      - name: Ensure directories exist
+        run: mkdir -p api graphs
       - name: Update template
         uses: upptime/uptime-monitor@v1.41.0
         with:
@@ -51,6 +56,18 @@ jobs:
           command: "readme"
         env:
           GH_PAT: ${{ secrets.GH_PAT || github.token }}
+      - name: Ensure Graphs CI workflow enabled
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: |
+          workflow_id=203545240
+          repo="${{ github.repository }}"
+          state=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id" | jq -r .state)
+          if [ "$state" != "active" ]; then
+            echo "Enabling workflow $workflow_id"
+            curl -X PUT -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/enable"
+            sleep 1
+          fi
       - name: Generate graphs
         uses: benc-uk/workflow-dispatch@v1
         with:
