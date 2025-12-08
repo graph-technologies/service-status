@@ -44,24 +44,50 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
-          workflow_id=203545240
+          workflow_file="graphs.yml"
           repo="${{ github.repository }}"
+          
           # Query workflow state
-          state=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id" | jq -r .state)
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_file")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          if [ "$http_code" != "200" ]; then
+            echo "Error: Failed to query workflow state (HTTP $http_code)"
+            echo "$body"
+            exit 1
+          fi
+          
+          state=$(echo "$body" | jq -r .state)
+          if [ -z "$state" ] || [ "$state" = "null" ]; then
+            echo "Error: Unable to parse workflow state"
+            exit 1
+          fi
+          
           if [ "$state" != "active" ]; then
-            echo "Enabling workflow $workflow_id"
-            curl -s -X PUT -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/enable"
+            echo "Enabling workflow $workflow_file (current state: $state)"
+            
+            enable_response=$(curl -s -w "\n%{http_code}" -X PUT -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_file/enable")
+            enable_http_code=$(echo "$enable_response" | tail -n1)
+            
+            if [ "$enable_http_code" != "204" ]; then
+              echo "Error: Failed to enable workflow (HTTP $enable_http_code)"
+              echo "$(echo "$enable_response" | sed '$d')"
+              exit 1
+            fi
+            
             # Poll for workflow to become active, up to 5 seconds
             for i in {1..5}; do
-              state=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id" | jq -r .state)
+              check_response=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_file")
+              state=$(echo "$check_response" | jq -r .state)
               if [ "$state" = "active" ]; then
-                echo "Workflow $workflow_id is now active"
+                echo "Workflow $workflow_file is now active"
                 break
               fi
               sleep 1
             done
           else
-            echo "Workflow $workflow_id already active"
+            echo "Workflow $workflow_file already active"
           fi
       - name: Generate graphs
         uses: benc-uk/workflow-dispatch@v1
