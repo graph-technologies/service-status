@@ -51,7 +51,15 @@ jobs:
           if [ "$state" != "active" ]; then
             echo "Enabling workflow $workflow_id"
             curl -s -X PUT -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id/enable"
-            sleep 1
+            # Poll for workflow to become active, up to 5 seconds
+            for i in {1..5}; do
+              state=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id" | jq -r .state)
+              if [ "$state" = "active" ]; then
+                echo "Workflow $workflow_id is now active"
+                break
+              fi
+              sleep 1
+            done
           else
             echo "Workflow $workflow_id already active"
           fi
