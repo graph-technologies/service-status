@@ -69,7 +69,7 @@ jobs:
         run: |
           workflow_id=".github/workflows/graphs.yml"
           repo="${{ github.repository }}"
-          # Query workflow state
+          # Check if workflow is active before attempting to enable it to avoid API errors
           state=$(curl -s -H "Authorization: token $GH_TOKEN" "https://api.github.com/repos/$repo/actions/workflows/$workflow_id" | jq -r .state)
           if [ "$state" != "active" ]; then
             echo "Enabling workflow $workflow_id"
